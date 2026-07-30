@@ -1,0 +1,4 @@
+node_modules/
+tests/report-sample.html
+*.zip
+.DS_Store

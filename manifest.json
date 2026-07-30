@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "SAML Tracer Pro",
+  "version": "1.5.1",
+  "description": "Capture SSO traffic on demand and decode it: SAML 2.0, SAML 1.1 and WS-Federation, formatted assertions, raw XML, all-traffic and errors views, JWT decoder, HTML reports.",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "webRequest",
+    "storage",
+    "downloads",
+    "clipboardWrite",
+    "clipboardRead",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "devtools_page": "devtools/devtools.html",
+  "action": {
+    "default_title": "Open SAML Tracer Pro",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

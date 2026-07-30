@@ -1,0 +1,13 @@
+{
+  "name": "saml-tracer-pro",
+  "version": "1.5.1",
+  "private": true,
+  "type": "module",
+  "description": "Chrome MV3 extension for capturing and decoding SSO traffic: SAML 2.0, SAML 1.1, WS-Federation, JWT decoder, flow visualizer, HTML reports.",
+  "scripts": {
+    "test": "node tests/run.mjs && node tests/panel.mjs && node tests/background.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  }
+}

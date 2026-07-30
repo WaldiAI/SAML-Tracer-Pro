@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <title>SAML Tracer Pro</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <svg class="sprite" aria-hidden="true">
+      <symbol id="i-record" viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.5" /></symbol>
+      <symbol id="i-pause" viewBox="0 0 16 16"><rect x="4" y="3.5" width="3" height="9" rx="1" /><rect x="9" y="3.5" width="3" height="9" rx="1" /></symbol>
+      <symbol id="i-scope" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="10" rx="1.5" /><path d="M8 3v10" /></symbol>
+      <symbol id="i-trash" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 5h10M6.5 5V3.5h3V5M4.5 5l.6 8h5.8l.6-8" /></symbol>
+      <symbol id="i-download" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2.5v7.5M5 7.5 8 10.5l3-3M3 13h10" /></symbol>
+      <symbol id="i-upload" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 10.5V3M5 6 8 3l3 3M3 13h10" /></symbol>
+      <symbol id="i-doc" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 2.5h5l3 3V13.5H4z" /><path d="M9 2.5v3h3M6 8.5h4M6 10.5h4" /></symbol>
+      <symbol id="i-gear" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="2.2" /><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M12.4 3.6l-1.1 1.1M4.7 11.3l-1.1 1.1" /></symbol>
+      <symbol id="i-star" viewBox="0 0 16 16"><path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" /></symbol>
+      <symbol id="i-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5.5" y="5.5" width="8" height="8" rx="1.2" /><path d="M10.5 5.5v-1a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h1" /></symbol>
+      <symbol id="i-pin" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 2.5h4l-.6 3.2 2.1 2.1H4.5l2.1-2.1z" /><path d="M8 7.8v5.7" /></symbol>
+      <symbol id="i-clip" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4" y="2.8" width="8" height="10.4" rx="1.4" /><path d="M6.5 2.8V2h3v.8" /></symbol>
+    </svg>
+
+    <header class="topbar">
+      <nav class="tabs" role="tablist">
+        <button class="tab is-active" data-view="saml" role="tab">SAML</button>
+        <button class="tab" data-view="all" role="tab">All Traffic</button>
+        <button class="tab" data-view="errors" role="tab">Errors</button>
+        <button class="tab" data-view="flow" role="tab">Flow</button>
+        <button class="tab" data-view="jwt" role="tab">JWT</button>
+      </nav>
+      <span class="count" id="count">0 captures</span>
+      <div class="spacer"></div>
+      <div class="toolbar">
+        <button class="cbtn" id="btnRecord" title="Start capturing (Ctrl/Cmd+Enter)">
+          <span class="cbtn-dot"></span><span id="recLabel">Start capture</span>
+        </button>
+        <button class="ibtn" id="btnScope" title="Show this tab only"><svg><use href="#i-scope" /></svg></button>
+        <button class="ibtn" id="btnClear" title="Clear capture"><svg><use href="#i-trash" /></svg></button>
+        <button class="ibtn" id="btnExport" title="Export capture as JSON"><svg><use href="#i-download" /></svg></button>
+        <button class="ibtn" id="btnImport" title="Import a saml-tracer JSON or HAR file"><svg><use href="#i-upload" /></svg></button>
+        <button class="ibtn" id="btnReport" title="Build an HTML report"><svg><use href="#i-doc" /></svg></button>
+        <button class="ibtn" id="btnSettings" title="Settings"><svg><use href="#i-gear" /></svg></button>
+      </div>
+    </header>
+
+    <main class="body" id="traceBody">
+      <aside class="list-pane" id="listPane">
+        <div class="statusbar" id="statusBar"></div>
+        <div class="list-head">
+          <input id="filter" type="search" placeholder="Filter by URL, method, status…" spellcheck="false" />
+          <label class="list-toggle" id="navOnlyWrap" title="Hide scripts, images and other page assets — show navigations and SSO messages only">
+            <input type="checkbox" id="navOnly" /> Pages &amp; SSO only
+          </label>
+        </div>
+        <ul class="entries" id="entries"></ul>
+        <p class="list-empty" id="listEmpty">Nothing captured yet. Start a login and the SSO hops show up here.</p>
+      </aside>
+      <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" tabindex="-1"></div>
+      <section class="detail" id="detail">
+        <div class="placeholder">Select a request on the left.</div>
+      </section>
+    </main>
+
+    <section class="flow-view" id="flowView" hidden></section>
+
+    <section class="jwt-view" id="jwtView" hidden>
+      <div class="jwt-input">
+        <textarea id="jwtText" placeholder="Paste a JWT here…" spellcheck="false"></textarea>
+        <div class="jwt-actions">
+          <button class="btn btn-primary" id="jwtPaste">Paste from clipboard</button>
+          <button class="btn" id="jwtClear">Clear</button>
+          <span class="jwt-note" id="jwtFoundNote"></span>
+        </div>
+        <div class="jwt-found" id="jwtFound"></div>
+      </div>
+      <div class="jwt-result" id="jwtResult"></div>
+    </section>
+
+    <div class="drop-overlay" id="dropOverlay" hidden>
+      <div class="drop-card">
+        <svg class="drop-icon"><use href="#i-upload" /></svg>
+        <p>Drop a saml-tracer JSON export or a HAR file to load it.</p>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" hidden></div>
+
+    <dialog class="sheet" id="settings">
+      <form method="dialog" class="sheet-form">
+        <h2>Settings</h2>
+
+        <label class="field">
+          <span class="field-label">Highlighted domains</span>
+          <textarea id="setDomains" rows="4" spellcheck="false" placeholder="*.okta.com&#10;sp.example.com"></textarea>
+          <span class="hint">One host per line. Wildcards allowed. Matching hosts get a gold star in the list.</span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Capture only these domains</span>
+          <textarea id="setCapture" rows="3" spellcheck="false" placeholder="*.okta.com&#10;sp.example.com"></textarea>
+          <span class="hint">Leave empty to watch every request. Listing your IdP and SP hosts keeps unrelated browsing out of memory entirely — wildcards allowed.</span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Pinned fields</span>
+          <textarea id="setPins" rows="4" spellcheck="false" placeholder="saml:issuer&#10;Set-Cookie&#10;path[2]&#10;query:RelayState"></textarea>
+          <span class="hint">Shown in a copy-ready bar above every entry. Use a header name, <code>saml:field</code>, <code>path[n]</code> or <code>query:name</code>. The pin button on any row adds it here.</span>
+        </label>
+
+        <div class="field-row">
+          <label class="field">
+            <span class="field-label">Capture</span>
+            <select id="setMode">
+              <option value="manual">Only when I start it</option>
+              <option value="always">Always on</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">Stop after quiet</span>
+            <select id="setIdleSecs">
+              <option value="5">5 seconds</option>
+              <option value="10">10 seconds</option>
+              <option value="15">15 seconds</option>
+              <option value="30">30 seconds</option>
+              <option value="60">60 seconds</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="field-row">
+          <label class="field">
+            <span class="field-label">Hard time limit</span>
+            <select id="setMaxSecs">
+              <option value="60">1 minute</option>
+              <option value="180">3 minutes</option>
+              <option value="300">5 minutes</option>
+              <option value="600">10 minutes</option>
+              <option value="0">no limit</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">Keep at most</span>
+            <select id="setMax">
+              <option value="300">300 requests</option>
+              <option value="800">800 requests</option>
+              <option value="1500">1500 requests</option>
+              <option value="4000">4000 requests</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="field">
+          <span class="field-label">Theme</span>
+          <select id="setTheme">
+            <option value="auto">Match browser</option>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </label>
+
+        <label class="check"><input type="checkbox" id="setAutoStop" /> Stop capturing by itself once the SAML flow goes quiet</label>
+        <label class="check"><input type="checkbox" id="setRedact" /> Remove Cookie and Authorization headers from exports, reports and copied text</label>
+        <label class="check"><input type="checkbox" id="setIdle" /> In always-on mode, keep capturing while no tracer window is open</label>
+        <label class="check"><input type="checkbox" id="setWrap" /> Wrap long lines in raw XML</label>
+        <label class="check"><input type="checkbox" id="setAutoSelect" /> Select new SAML messages automatically</label>
+
+        <footer class="sheet-actions">
+          <button class="btn" value="cancel">Cancel</button>
+          <button class="btn btn-primary" id="setSave" value="save">Save settings</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <input type="file" id="fileInput" accept=".json,.har,application/json" hidden />
+    <script type="module" src="panel.js"></script>
+  </body>
+</html>
