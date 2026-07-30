@@ -1,211 +1,211 @@
 # SAML Tracer Pro
 
-Rozszerzenie Chrome (Manifest V3) do debugowania SSO: przechwytuje ruch, dekoduje `SAMLRequest` / `SAMLResponse` w locie, pokazuje atrybuty po nazwach przyjaznych, ma widok wszystkich żądań, widok błędów i dekoder JWT. Wszystko działa lokalnie — rozszerzenie nie wysyła nic na zewnątrz.
+A Chrome extension (Manifest V3) for debugging SSO: it captures traffic, decodes `SAMLRequest` / `SAMLResponse` on the fly, shows attributes under friendly names, and provides an all-requests view, an errors view, and a JWT decoder. Everything runs locally — the extension sends nothing anywhere.
 
-Rozpoznawanie działa **na poziomie protokołu, nie dostawcy** — nie ma w kodzie niczego zaszytego pod konkretny IdP. Szczegóły w sekcji [Zgodność z dostawcami](#zgodność-z-dostawcami-iam).
+Detection works **at the protocol level, not the vendor level** — nothing in the code is hardwired to a specific IdP. See the [IAM vendor compatibility](#iam-vendor-compatibility) section for details.
 
-## Instalacja (tryb developerski)
+## Installation (developer mode)
 
-1. Rozpakuj archiwum, np. do `~/saml-tracer-pro`.
-2. Otwórz `chrome://extensions`.
-3. Włącz **Developer mode** (prawy górny róg).
-4. **Load unpacked** → wskaż katalog z plikiem `manifest.json`.
-5. Przypnij ikonę do paska narzędzi.
+1. Unpack the archive, e.g. into `~/saml-tracer-pro`.
+2. Open `chrome://extensions`.
+3. Enable **Developer mode** (top-right corner).
+4. **Load unpacked** → point at the directory containing `manifest.json`.
+5. Pin the icon to the toolbar.
 
-Aktualizacja po edycji plików: **Reload** na kafelku rozszerzenia (przy zmianach w `panel/` wystarczy zamknąć i otworzyć okno tracera).
+Updating after editing files: click **Reload** on the extension tile (for changes in `panel/`, closing and reopening the tracer window is enough).
 
-## Dwa sposoby użycia
+## Two ways to use it
 
-| Sposób | Jak otworzyć | Kiedy |
+| Mode | How to open | When |
 | --- | --- | --- |
-| Osobne okno | klik w ikonę na pasku | logowanie przenosi Cię między domenami, chcesz mieć tracer obok okna przeglądarki |
-| Panel DevTools | F12 → zakładka **SAML** | debugujesz razem z Network / Console |
+| Separate window | click the toolbar icon | the login bounces you across domains and you want the tracer next to the browser window |
+| DevTools panel | F12 → **SAML** tab | you're debugging alongside Network / Console |
 
-## Cykl nagrywania
+## Recording lifecycle
 
-Domyślnie rozszerzenie **nie nasłuchuje**. Jedna sesja debugowania wygląda tak:
+By default the extension **does not listen**. A single debugging session looks like this:
 
-1. **Start capture** (przycisk w pasku albo `Ctrl/Cmd+Enter`) — dopiero teraz cokolwiek jest przechwytywane.
-2. Uruchamiasz logowanie. Kolejność ma znaczenie: startujesz **przed** kliknięciem, inaczej tracisz `AuthnRequest`, czyli początek flow.
-3. Rozszerzenie zatrzymuje się samo, gdy rozmowa SAML **ucichnie** — domyślnie 15 s bez nowej wiadomości SAML i bez nawigacji w toku.
-4. Przechwycone dane zostają w panelu do momentu, gdy klikniesz `Clear`. Pasek stanu mówi, dlaczego nagrywanie się skończyło, i oferuje „Start again".
+1. **Start capture** (button in the toolbar or `Ctrl/Cmd+Enter`) — only now is anything captured.
+2. Kick off the login. Order matters: start **before** you click, otherwise you lose the `AuthnRequest`, i.e. the beginning of the flow.
+3. The extension stops on its own once the SAML conversation **goes quiet** — by default 15 s with no new SAML message and no navigation in flight.
+4. Captured data stays in the panel until you click `Clear`. The status bar tells you why recording ended and offers "Start again".
 
-Dlaczego cisza, a nie „stop po odebraniu `SAMLResponse`": zaraz po asercji dzieje się to, co często jest właśnie usterką — SP zakłada sesję i przekierowuje, odbija w pętli z powrotem do IdP albo zwraca 500. Zatrzymanie w sekundzie odebrania asercji obcięłoby najciekawszy fragment. Okno ciszy zostawia ten ogon w nagraniu, a jednocześnie kończy sesję po kilkunastu sekundach.
+Why quiet time rather than "stop once `SAMLResponse` arrives": right after the assertion is when the actual failure often happens — the SP establishes a session and redirects, loops back to the IdP, or returns a 500. Stopping the second the assertion arrives would cut off the most interesting part. The quiet window keeps that tail in the recording while still ending the session within seconds.
 
-Dodatkowe zabezpieczenia:
+Additional safeguards:
 
-- **Twardy limit czasu** (domyślnie 5 min). Jeśli logowanie padnie po stronie IdP, `SAMLResponse` nigdy nie przyjdzie i warunek ciszy sam z siebie by nie zadziałał.
-- **Zawieszona nawigacja nie blokuje stopu** — żądanie `main_frame`, które nie kończy się w 20 s, przestaje być brane pod uwagę.
-- **Ikona na pasku pokazuje `REC`** na czerwono, gdy nasłuch jest aktywny. Nie da się przypadkiem zostawić włączonego nagrywania bez śladu.
+- **Hard time limit** (default 5 min). If the login dies on the IdP side, the `SAMLResponse` never arrives and the quiet condition would never trigger by itself.
+- **A stuck navigation doesn't block the stop** — a `main_frame` request that doesn't finish within 20 s stops being taken into account.
+- **The toolbar icon shows `REC`** in red while listening is active. You can't accidentally leave recording on without a trace.
 
-W ustawieniach można wrócić do trybu **Always on** (nasłuch od startu przeglądarki, także przy zamkniętym panelu) — wtedy panel otwierasz po fakcie i widzisz ostatnie wiadomości z bufora `chrome.storage.session`. To tryb wygodniejszy, ale zbierający znacznie więcej danych.
+In settings you can switch back to **Always on** mode (listening from browser startup, even with the panel closed) — then you open the panel after the fact and see the latest messages from the `chrome.storage.session` buffer. That mode is more convenient but collects considerably more data.
 
-## Zakładki
+## Tabs
 
-- **SAML** — tylko wiadomości SAML. Nagłówek: URL, Issuer, Destination, Subject, Status, Issued, Encoding. Dalej: plakietki (podpis odpowiedzi / asercji, szyfrowanie, binding), pasek ważności, tabela atrybutów (Friendly / Name / Value), Conditions, Authentication, Signature z odciskiem certyfikatu, Parameters, nagłówki żądania i odpowiedzi, na końcu rozwijany **Raw XML** z kolorowaniem składni.
-- **All Traffic** — wszystkie żądania z metodą, statusem, typem, czasem, przekierowaniem, treścią POST i nagłówkami. Każdy hop przekierowania to osobny wiersz.
-- **Errors** — tylko 4xx, 5xx i błędy sieciowe (`net::ERR_*`).
-- **Flow** — przechwycone logowanie odtworzone etapami jako oś czasu: start w aplikacji → `AuthnRequest` → uwierzytelnienie w IdP → asercja → konsumpcja na ACS → sesja aplikacji (analogicznie WS-Fed i logout). Każdy etap ma opis prostym językiem (co się dzieje, kto z kim rozmawia) i rozwijaną listę „What to check at this stage". Nad osią: pasek aktorów Browser ⇄ IdP ⇄ SP z rozpoznanymi hostami oraz **automatyczne diagnozy** — flow zatrzymany w IdP, asercja odrzucona przez SP (z numerem statusu), pętla przekierowań, flow inicjowany po stronie IdP, binding artifact, a także **odrzucenie asercji przez SP mimo czystych statusów HTTP** — wiele aplikacji (np. Salesforce) odpowiada na nieudaną walidację przekierowaniem 302 na własną stronę błędu z kodem 200; Flow rozpoznaje takie strony po ścieżce (`SamlError`, `SAMLValidationPage`, `sso-error`, `errorcode=`...), oznacza etap „The SP rejected the assertion” i podpowiada najczęstszą przyczynę: użytkownik nieutworzony po stronie SP albo NameID niepasujący do żadnego konta. Klik w dowolny hop przenosi do jego szczegółów. Zakładka służy jednocześnie jako samouczek SAML dla kogoś, kto widzi protokół pierwszy raz — pusta pokazuje opis, jak logowanie będzie wyglądać.
-- **JWT** — wklej token (albo kliknij token wyłapany z nagłówka `Authorization` w ruchu): header, payload, signature, panel Highlights z iss / aud / exp i informacją, czy token wygasł.
+- **SAML** — SAML messages only. Header: URL, Issuer, Destination, Subject, Status, Issued, Encoding. Then: badges (response / assertion signature, encryption, binding), a validity bar, the attribute table (Friendly / Name / Value), Conditions, Authentication, Signature with the certificate fingerprint, Parameters, request and response headers, and finally a collapsible **Raw XML** with syntax highlighting.
+- **All Traffic** — every request with method, status, type, timing, redirect, POST body and headers. Each redirect hop is its own row.
+- **Errors** — only 4xx, 5xx and network errors (`net::ERR_*`).
+- **Flow** — the captured login replayed stage by stage as a timeline: start in the app → `AuthnRequest` → authentication at the IdP → assertion → consumption at the ACS → application session (WS-Fed and logout analogously). Each stage has a plain-language description (what's happening, who is talking to whom) and an expandable "What to check at this stage" list. Above the timeline: a Browser ⇄ IdP ⇄ SP actor bar with the recognized hosts, plus **automatic diagnoses** — flow stalled at the IdP, assertion rejected by the SP (with the status code), redirect loop, IdP-initiated flow, artifact binding, and also **the SP rejecting the assertion despite clean HTTP statuses** — many applications (e.g. Salesforce) respond to failed validation with a 302 redirect to their own error page served with a 200; Flow recognizes such pages by their path (`SamlError`, `SAMLValidationPage`, `sso-error`, `errorcode=`...), marks the stage "The SP rejected the assertion" and suggests the most common cause: the user not provisioned on the SP side, or a NameID matching no account. Clicking any hop jumps to its details. The tab doubles as a SAML tutorial for someone seeing the protocol for the first time — when empty it shows a description of what the login will look like.
+- **JWT** — paste a token (or click a token picked up from an `Authorization` header in the traffic): header, payload, signature, and a Highlights panel with iss / aud / exp and whether the token has expired.
 
-Filtr nad listą szuka po URL, metodzie i statusie — wiele słów działa jak AND (`post 500 acs`).
+The filter above the list searches by URL, method and status — multiple words act as AND (`post 500 acs`).
 
-Skróty: `Ctrl/Cmd+Enter` start/stop nagrywania, `1`–`5` zakładki, `↑`/`↓` lub `j`/`k` wybór wiersza, `/` lub `Ctrl/Cmd+F` filtr.
+Shortcuts: `Ctrl/Cmd+Enter` start/stop recording, `1`–`5` tabs, `↑`/`↓` or `j`/`k` row selection, `/` or `Ctrl/Cmd+F` filter.
 
-## Czego nie ma w oryginale
+## What the original doesn't have
 
-- **Pasek ważności asercji** — `NotBefore` → `NotOnOrAfter` z markerem „teraz”, licznikiem czasu do wygaśnięcia i podpowiedzią o przesunięciu zegara, gdy asercja jeszcze nie obowiązuje. To najczęstsza przyczyna „logowanie działa u mnie, nie działa u klienta”.
-- **Import HAR** — poza formatem JSON saml-tracera wczytuje też HAR z DevTools i luźne tablice żądań. Importer jest tolerancyjny: mapuje `request`/`response`, nagłówki jako tablicę lub obiekt, `postData` jako tekst lub `params`, i sam wykrywa SAML w URL-u oraz w ciele POST.
-- **Odcisk certyfikatu** — SHA-256 certyfikatu z `<ds:X509Certificate>` plus kopiowanie go jako PEM. Porównujesz z certyfikatem w aplikacji w Okcie bez wychodzenia z panelu.
-- **Wykrywanie JWT w ruchu** — tokeny z nagłówków i ciał żądań są zbierane i dostępne jednym kliknięciem w zakładce JWT.
-- **Pasek przypiętych pól** z rozszerzoną składnią (`path[n]`, `query:nazwa`, `saml:attr:email`).
-- **Copy jako tekst** — cały wpis (podsumowanie + atrybuty + nagłówki + XML) w formie gotowej do wklejenia w ticket.
-- Praca w osobnym oknie, nie tylko w DevTools.
+- **Assertion validity bar** — `NotBefore` → `NotOnOrAfter` with a "now" marker, a countdown to expiry, and a clock-skew hint when the assertion isn't valid yet. This is the most common cause of "login works for me, fails for the customer".
+- **HAR import** — besides saml-tracer's JSON format it also loads HAR from DevTools and loose request arrays. The importer is tolerant: it maps `request`/`response`, headers as an array or an object, `postData` as text or `params`, and detects SAML in the URL and in the POST body on its own.
+- **Certificate fingerprint** — SHA-256 of the certificate from `<ds:X509Certificate>` plus copying it as PEM. You compare it with the certificate in the Okta app without leaving the panel.
+- **JWT detection in traffic** — tokens from headers and request bodies are collected and available with one click in the JWT tab.
+- **Pinned fields bar** with extended syntax (`path[n]`, `query:name`, `saml:attr:email`).
+- **Copy as text** — the whole entry (summary + attributes + headers + XML) ready to paste into a ticket.
+- Works in a separate window, not just in DevTools.
 
-## Ustawienia (ikona koła zębatego)
+## Settings (gear icon)
 
-- **Highlighted domains** — po jednym hoście w linii, wildcardy dozwolone (`*.okta.com`, `sp.samltest.*`). Trafione wiersze dostają złotą gwiazdkę. Wpisanie samej domeny (`okta.com`) obejmuje też subdomeny.
-- **Pinned fields** — pola pokazywane w pasku nad każdym wpisem:
-  - nazwa nagłówka, np. `Set-Cookie` (najpierw szukane w odpowiedzi, potem w żądaniu),
+- **Highlighted domains** — one host per line, wildcards allowed (`*.okta.com`, `sp.samltest.*`). Matching rows get a gold star. Entering a bare domain (`okta.com`) covers subdomains too.
+- **Pinned fields** — fields shown in the bar above each entry:
+  - a header name, e.g. `Set-Cookie` (looked up in the response first, then the request),
   - `saml:issuer`, `saml:destination`, `saml:subject`, `saml:status`, `saml:audience`, `saml:notbefore`, `saml:notonorafter`, `saml:sessionindex`, `saml:inresponseto`, `saml:relaystate`, `saml:binding`, `saml:nameidformat`,
-  - `saml:attr:email` — konkretny atrybut po nazwie przyjaznej albo pełnej,
-  - `path[2]` / `path[-1]` — segment ścieżki URL (wyciąganie ID tenanta lub aplikacji),
+  - `saml:attr:email` — a specific attribute by friendly or full name,
+  - `path[2]` / `path[-1]` — a URL path segment (extracting a tenant or application ID),
   - `query:RelayState`, `url`, `host`, `status`.
-  Przycisk pinezki przy każdym nagłówku, atrybucie i polu podsumowania dodaje wpis tutaj automatycznie.
-- **Capture** — `Only when I start it` (domyślnie) albo `Always on`.
-- **Stop after quiet** — długość okna ciszy kończącego sesję (5–60 s).
-- **Hard time limit** — górna granica jednej sesji nagrywania (1 min – bez limitu).
-- **Stop capturing by itself once the SAML flow goes quiet** — wyłączenie zostawia nagrywanie do ręcznego stopu (twardy limit nadal obowiązuje).
-- **Capture only these domains** — biała lista hostów, które w ogóle są przechwytywane (wildcardy dozwolone). Puste = cały ruch. Wpisanie tu IdP i SP to najmocniejsza minimalizacja: ruch spoza listy nie trafia nawet do pamięci.
-- **Remove Cookie and Authorization headers…** — domyślnie włączone. Eksport JSON, raport HTML i „Copy" zamieniają wartości nagłówków `Cookie`, `Set-Cookie`, `Authorization`, `Proxy-Authorization`, `X-Api-Key`, `X-CSRF-Token` i `DPoP` na `[redacted by SAML Tracer Pro]`. Nazwy nagłówków zostają, żeby było widać, co tam było. W panelu widzisz pełne wartości — redakcja dotyczy tylko tego, co opuszcza narzędzie.
-- **In always-on mode, keep capturing while no tracer window is open** — dotyczy tylko trybu Always on.
-- **Theme** — ciemny, jasny lub zgodnie z przeglądarką (w DevTools zgodnie z motywem DevTools).
-- **Keep at most** — limit przechowywanych żądań.
+  The pin button next to every header, attribute and summary field adds an entry here automatically.
+- **Capture** — `Only when I start it` (default) or `Always on`.
+- **Stop after quiet** — length of the quiet window that ends a session (5–60 s).
+- **Hard time limit** — upper bound for a single recording session (1 min – unlimited).
+- **Stop capturing by itself once the SAML flow goes quiet** — turning this off leaves recording running until a manual stop (the hard limit still applies).
+- **Capture only these domains** — an allowlist of hosts that get captured at all (wildcards allowed). Empty = all traffic. Listing your IdP and SP here is the strongest form of minimization: traffic outside the list never even reaches memory.
+- **Remove Cookie and Authorization headers…** — on by default. JSON export, the HTML report and "Copy" replace the values of the `Cookie`, `Set-Cookie`, `Authorization`, `Proxy-Authorization`, `X-Api-Key`, `X-CSRF-Token` and `DPoP` headers with `[redacted by SAML Tracer Pro]`. Header names stay, so you can see what was there. In the panel you see the full values — redaction only applies to what leaves the tool.
+- **In always-on mode, keep capturing while no tracer window is open** — applies to Always on mode only.
+- **Theme** — dark, light, or follow the browser (in DevTools it follows the DevTools theme).
+- **Keep at most** — limit on stored requests.
 
-## Zgodność z dostawcami IAM
+## IAM vendor compatibility
 
-Wykrywanie opiera się na nazwach parametrów z bindingów SAML 2.0 (`SAMLRequest`, `SAMLResponse`, `SAMLart`) i WS-Federation (`wa=wsignin1.0`, `wresult`), a parser jest **niezależny od prefiksów namespace** — `saml2:`, `saml:`, `ns2:`, `t:` albo brak prefiksu są traktowane identycznie. W kodzie nie ma nazwy żadnego dostawcy poza przykładami w komentarzach.
+Detection is based on parameter names from the SAML 2.0 bindings (`SAMLRequest`, `SAMLResponse`, `SAMLart`) and WS-Federation (`wa=wsignin1.0`, `wresult`), and the parser is **namespace-prefix agnostic** — `saml2:`, `saml:`, `ns2:`, `t:` or no prefix at all are treated identically. No vendor name appears in the code beyond examples in comments.
 
-| Protokół / dostawca | Status | Uwagi |
+| Protocol / vendor | Status | Notes |
 | --- | --- | --- |
-| SAML 2.0 — Okta, Entra ID (Azure AD), Ping, Keycloak, Shibboleth, Auth0, OneLogin, JumpCloud, Google Workspace, Salesforce jako IdP | pełne wsparcie | oba bindingi (POST i Redirect), `AuthnRequest`, `Response`, `LogoutRequest`/`LogoutResponse` |
-| SAML 1.1 (starsze ADFS, legacy SSO) | pełne wsparcie | `NameIdentifier`, `AuthenticationStatement`, `AudienceRestrictionCondition`, `AttributeName` + `AttributeNamespace`, status jako QName (`samlp:Success`) |
-| WS-Federation — ADFS i pochodne | pełne wsparcie | `wsignin1.0` / `wsignout1.0` z parametrami `wtrealm`, `wctx`, `wreply`, `whr`; token `wresult` jako czysty XML (bez base64), sekcja „WS-Federation envelope" z `AppliesTo`, `TokenType` i czasem życia |
-| Binding Artifact (`SAMLart`) | wykrywany, nie dekodowany | asercję pobiera SP kanałem back-channel (SOAP), przeglądarka jej nie widzi — panel mówi to wprost zamiast pokazywać błąd dekodowania |
-| Zaszyfrowane asercje (`EncryptedAssertion`) | wykrywane, nie odszyfrowywane | odszyfrowanie wymaga klucza prywatnego SP; panel pokazuje plakietkę „Encrypted assertion" |
-| OIDC / OAuth 2.0 — Entra ID, Auth0, Keycloak, Okta | częściowo | żądania i odpowiedzi widoczne w **All Traffic**, tokeny `Bearer` i `id_token` z nagłówków i ciał wyłapywane do zakładki JWT. Nie ma dedykowanego widoku flow OIDC. Uwaga na ograniczenie przeglądarki: fragment URL (`#id_token=…` we flow implicit) nie jest wysyłany na serwer, więc nie pojawia się w `webRequest` |
-| WS-Trust (SOAP), CAS, Kerberos/SPNEGO | brak | inne protokoły, nie ma parsera |
+| SAML 2.0 — Okta, Entra ID (Azure AD), Ping, Keycloak, Shibboleth, Auth0, OneLogin, JumpCloud, Google Workspace, Salesforce as IdP | full support | both bindings (POST and Redirect), `AuthnRequest`, `Response`, `LogoutRequest`/`LogoutResponse` |
+| SAML 1.1 (older ADFS, legacy SSO) | full support | `NameIdentifier`, `AuthenticationStatement`, `AudienceRestrictionCondition`, `AttributeName` + `AttributeNamespace`, status as a QName (`samlp:Success`) |
+| WS-Federation — ADFS and derivatives | full support | `wsignin1.0` / `wsignout1.0` with the `wtrealm`, `wctx`, `wreply`, `whr` parameters; the `wresult` token as plain XML (no base64), a "WS-Federation envelope" section with `AppliesTo`, `TokenType` and lifetime |
+| Artifact binding (`SAMLart`) | detected, not decoded | the SP fetches the assertion over a back channel (SOAP), the browser never sees it — the panel says so outright instead of showing a decoding error |
+| Encrypted assertions (`EncryptedAssertion`) | detected, not decrypted | decryption requires the SP's private key; the panel shows an "Encrypted assertion" badge |
+| OIDC / OAuth 2.0 — Entra ID, Auth0, Keycloak, Okta | partial | requests and responses visible in **All Traffic**, `Bearer` tokens and `id_token`s from headers and bodies are picked up into the JWT tab. There is no dedicated OIDC flow view. Mind a browser limitation: the URL fragment (`#id_token=…` in the implicit flow) is never sent to the server, so it doesn't appear in `webRequest` |
+| WS-Trust (SOAP), CAS, Kerberos/SPNEGO | none | different protocols, no parser |
 
-Nazwy atrybutów są tłumaczone na czytelne etykiety dla schematów `schemas.xmlsoap.org` (ADFS, Entra ID), `schemas.microsoft.com` oraz `urn:oid:` (Shibboleth / eduPerson). Jeśli IdP wysyła `FriendlyName`, ma pierwszeństwo; jeśli nie — etykieta jest wyprowadzana z nazwy.
+Attribute names are translated into readable labels for the `schemas.xmlsoap.org` (ADFS, Entra ID), `schemas.microsoft.com` and `urn:oid:` (Shibboleth / eduPerson) schemas. If the IdP sends a `FriendlyName`, it takes precedence; otherwise the label is derived from the name.
 
-Testy obejmują prawdziwe kształty odpowiedzi z Entra ID (bez prefiksów namespace), ADFS przez WS-Fed z asercją SAML 1.1 w kopercie WS-Trust, Shibbolethu (`urn:oid` + `FriendlyName`), błędu Ping/Keycloak z zagnieżdżonym `StatusCode` oraz legacy SAML 1.1.
+The tests cover real response shapes from Entra ID (no namespace prefixes), ADFS over WS-Fed with a SAML 1.1 assertion in a WS-Trust envelope, Shibboleth (`urn:oid` + `FriendlyName`), a Ping/Keycloak error with a nested `StatusCode`, and legacy SAML 1.1.
 
-## Diagnostyka — na co patrzeć
+## Diagnostics — what to look at
 
-| Objaw | Gdzie sprawdzić |
+| Symptom | Where to check |
 | --- | --- |
-| SP zwraca 400/500 na `/acs` | zakładka Errors, potem ten sam wpis w SAML — Status i Conditions |
-| „Audience mismatch” | Conditions → Audience vs Audience URI / SP Entity ID (w ADFS: `AppliesTo` w kopercie WS-Fed) |
-| „Assertion not yet valid” | pasek ważności — jeśli marker „teraz” jest przed początkiem okna, zegary SP i IdP się rozjeżdżają |
-| SP nie widzi grup/atrybutów | tabela Attributes — atrybut bez wartości ma `(no values)`, czyli mapowanie po stronie IdP zwróciło pustkę |
-| „InResponseTo mismatch” | `InResponseTo` w odpowiedzi vs `ID` w `AuthnRequest` (poprzedni hop w All Traffic) |
-| Podpis odrzucony | plakietki (co jest podpisane: odpowiedź, asercja, oba) + odcisk certyfikatu w sekcji Signature |
-| ADFS: „token not valid” | sekcja WS-Federation envelope — `AppliesTo` vs identyfikator RP, `Created`/`Expires` vs zegar SP |
-| Pętla przekierowań | All Traffic — każdy hop 302 osobno, z nagłówkiem `Location` |
+| SP returns 400/500 on `/acs` | Errors tab, then the same entry in SAML — Status and Conditions |
+| "Audience mismatch" | Conditions → Audience vs Audience URI / SP Entity ID (in ADFS: `AppliesTo` in the WS-Fed envelope) |
+| "Assertion not yet valid" | validity bar — if the "now" marker sits before the window starts, the SP and IdP clocks have drifted apart |
+| SP doesn't see groups/attributes | Attributes table — an attribute without values shows `(no values)`, meaning the mapping on the IdP side returned nothing |
+| "InResponseTo mismatch" | `InResponseTo` in the response vs `ID` in the `AuthnRequest` (the previous hop in All Traffic) |
+| Signature rejected | badges (what is signed: response, assertion, both) + the certificate fingerprint in the Signature section |
+| ADFS: "token not valid" | WS-Federation envelope section — `AppliesTo` vs the RP identifier, `Created`/`Expires` vs the SP clock |
+| Redirect loop | All Traffic — each 302 hop separately, with the `Location` header |
 
-## Eksport i raport
+## Export and report
 
-- **Export JSON** (ikona ze strzałką w dół) — zapisuje aktualnie widoczne wpisy (czyli filtr i zakładka mają znaczenie). Każdy wpis ma zarówno pola natywne, jak i aliasy `postData` / `timestamp`, więc plik czyta się też innymi narzędziami.
-- **Import** (strzałka w górę lub przeciągnięcie pliku w okno) — JSON z tego rozszerzenia, JSON saml-tracera, HAR.
-- **Raport HTML** (ikona dokumentu) — jeden samodzielny plik: statystyki, karty wiadomości SAML z atrybutami i XML-em, lista błędów, tabela całego ruchu. Nadaje się do wysłania do supportu i do druku.
+- **Export JSON** (down-arrow icon) — saves the currently visible entries (so the filter and active tab matter). Every entry carries both native fields and the `postData` / `timestamp` aliases, so the file is readable by other tools too.
+- **Import** (up arrow, or drag a file into the window) — JSON from this extension, saml-tracer JSON, HAR.
+- **HTML report** (document icon) — a single self-contained file: statistics, SAML message cards with attributes and XML, the error list, and a table of all traffic. Suitable for sending to support and for printing.
 
-## Bezpieczeństwo i dane osobowe
+## Security and personal data
 
-### Co wychodzi z maszyny
+### What leaves the machine
 
-Nic. Rozszerzenie nie ma ani jednego wywołania sieciowego: brak `fetch`, `XMLHttpRequest`, `WebSocket`, `sendBeacon`, brak telemetrii, brak zewnętrznych skryptów, fontów, CDN-ów i obrazków. Cały kod (parser SAML, dekoder JWT, generator raportu) jest lokalny, czcionki są systemowe. Manifest V3 dodatkowo blokuje wykonanie zdalnego kodu. Można to sprawdzić jednym poleceniem w katalogu rozszerzenia:
+Nothing. The extension makes not a single network call: no `fetch`, `XMLHttpRequest`, `WebSocket`, `sendBeacon`, no telemetry, no external scripts, fonts, CDNs or images. All code (the SAML parser, the JWT decoder, the report generator) is local and the fonts are system fonts. Manifest V3 additionally blocks remote code execution. You can verify it with one command in the extension directory:
 
 ```bash
 grep -rnE "fetch\(|XMLHttpRequest|WebSocket|sendBeacon|https?://" --include=*.js --include=*.html --include=*.css . | grep -v tests/
 ```
 
-Jedyne dane opuszczające narzędzie to pliki, które **sam** zapiszesz (Export JSON, raport HTML, Save XML) i to, co skopiujesz do schowka.
+The only data that leaves the tool are files **you** save yourself (Export JSON, the HTML report, Save XML) and whatever you copy to the clipboard.
 
-### Gdzie i jak długo leżą dane
+### Where data lives and for how long
 
-| Dane | Miejsce | Czas życia |
+| Data | Location | Lifetime |
 | --- | --- | --- |
-| Przechwycone żądania, zakodowane `SAMLResponse`, nagłówki (w tym `Cookie`) | RAM service workera i otwartego panelu | do `Clear`, przeładowania rozszerzenia lub zamknięcia przeglądarki; zbierane tylko w trakcie uruchomionej sesji nagrywania |
-| Bufor ostatnich ~150 wpisów | `chrome.storage.session` — **pamięć**, nie dysk | do zamknięcia przeglądarki; Chrome nie zapisuje tego obszaru na dysk |
-| Zdekodowany XML i sparsowany model | RAM panelu | do zamknięcia panelu |
-| Ustawienia (highlight, pinezki, biała lista, motyw) | `chrome.storage.local` | do odinstalowania rozszerzenia |
-| Wklejony JWT | pole tekstowe w panelu | do wyczyszczenia pola / zamknięcia panelu |
+| Captured requests, encoded `SAMLResponse`, headers (including `Cookie`) | RAM of the service worker and the open panel | until `Clear`, an extension reload, or closing the browser; collected only during an active recording session |
+| Buffer of the last ~150 entries | `chrome.storage.session` — **memory**, not disk | until the browser closes; Chrome doesn't persist this area to disk |
+| Decoded XML and the parsed model | panel RAM | until the panel closes |
+| Settings (highlights, pins, allowlist, theme) | `chrome.storage.local` | until the extension is uninstalled |
+| Pasted JWT | a text field in the panel | until the field is cleared / the panel closes |
 
-**`storage.local`, nie `storage.sync`** — świadomie. Nazwy hostów IdP i SP oraz przypięte pola opisują systemy klienta, więc nie mają czego szukać w koncie Google i na serwerach synchronizacji. Jeśli używałeś wersji 1.0.x, przy pierwszym uruchomieniu 1.1.0 ustawienia są przenoszone do `storage.local`, a kopia z `sync` usuwana.
+**`storage.local`, not `storage.sync`** — deliberately. IdP and SP hostnames and pinned fields describe customer systems, so they have no business being in a Google account or on sync servers. If you used version 1.0.x, on the first run of 1.1.0 the settings are migrated to `storage.local` and the `sync` copy is deleted.
 
-Rozszerzenie **nie prowadzi żadnego logu na dysku**, nie zapisuje asercji automatycznie i nie wysyła ich do siebie samego między sesjami.
+The extension **keeps no log on disk**, doesn't save assertions automatically, and doesn't send them to itself between sessions.
 
-### Uprawnienia i po co są
+### Permissions and what they're for
 
-| Uprawnienie | Do czego |
+| Permission | Purpose |
 | --- | --- |
-| `webRequest` + `<all_urls>` | podglądanie metadanych żądań i ciał POST — bez tego nie ma tracera |
-| `storage` | ustawienia (`local`) i bufor sesji (`session`) |
-| `downloads` | zapis eksportu, raportu i XML-a |
-| `clipboardRead` / `clipboardWrite` | przyciski „Copy" i „Paste from clipboard" w dekoderze JWT |
-| `tabs` | otwarcie okna tracera |
+| `webRequest` + `<all_urls>` | inspecting request metadata and POST bodies — without this there is no tracer |
+| `storage` | settings (`local`) and the session buffer (`session`) |
+| `downloads` | saving the export, the report and XML |
+| `clipboardRead` / `clipboardWrite` | the "Copy" and "Paste from clipboard" buttons in the JWT decoder |
+| `tabs` | opening the tracer window |
 
-Brak `scripting` i brak content scriptów — rozszerzenie nie wstrzykuje niczego na strony i nie czyta DOM-u odwiedzanych witryn.
+No `scripting` and no content scripts — the extension injects nothing into pages and doesn't read the DOM of visited sites.
 
-### Konfiguracja zgodna z minimalizacją danych (RODO art. 5 ust. 1 lit. c)
+### A data-minimization-friendly configuration (GDPR Art. 5(1)(c))
 
-Domyślnie nasłuch obejmuje cały ruch, także niezwiązany z SSO — wygodne, ale z perspektywy minimalizacji zbyt szerokie. Zalecane ustawienie na czas normalnej pracy:
+By default, listening covers all traffic, including traffic unrelated to SSO — convenient, but too broad from a minimization standpoint. Recommended settings for day-to-day work:
 
-1. **Capture: Only when I start it** (domyślnie) + auto-stop na ciszy. Nagranie trwa tyle, ile flow — kilkanaście sekund zamiast całego dnia. Nic nie musisz usuwać, bo nic się nie zebrało.
-2. **Capture only these domains** → wpisz wyłącznie hosty IdP i SP, np. `*.okta.com` i `sp.samltest.kmmr.jp`. Wszystko poza listą nie jest w ogóle przechwytywane — bank, poczta i intranet nigdy nie trafiają do pamięci narzędzia. Te dwa mechanizmy działają niezależnie: pierwszy ogranicza **czas**, drugi **zakres**.
-3. **Remove Cookie and Authorization headers…** → zostaw włączone, chyba że ticket wymaga właśnie ciasteczek sesyjnych.
-4. `Clear` (kosz) po skończonej analizie — dane z nagrania żyją w panelu do wyczyszczenia.
-5. Do testów używaj konta testowego, nie konta realnego użytkownika — asercja zawiera imię, nazwisko, adres e-mail i grupy, czyli dane osobowe.
+1. **Capture: Only when I start it** (default) + auto-stop on quiet. A recording lasts as long as the flow — a dozen seconds instead of a whole day. There's nothing to delete, because nothing was collected.
+2. **Capture only these domains** → enter only the IdP and SP hosts, e.g. `*.okta.com` and `sp.samltest.kmmr.jp`. Everything outside the list is never captured at all — your bank, mail and intranet never reach the tool's memory. The two mechanisms work independently: the first limits **time**, the second **scope**.
+3. **Remove Cookie and Authorization headers…** → leave it on, unless the ticket specifically requires session cookies.
+4. `Clear` (trash icon) once you're done analyzing — recorded data lives in the panel until cleared.
+5. Use a test account for testing, not a real user's account — the assertion contains a first name, last name, e-mail address and groups, i.e. personal data.
 
-### Praca z asercjami — o czym pamiętać
+### Working with assertions — things to keep in mind
 
-- Asercja SAML i JWT to **poświadczenia**, nie tylko dane. Ważna asercja wklejona w ticket może być odtworzona przez SP w okienku ważności (u Okty domyślnie 5 minut) — dlatego dołączaj raport dopiero po wygaśnięciu okna albo z konta testowego.
-- Eksport, raport i skopiowany tekst zawierają pełne atrybuty (e-mail, grupy, dział) — traktuj pliki jak dane osobowe: przekazywanie zewnętrznemu supportowi to udostępnienie danych, więc obowiązuje umowa powierzenia / podstawa prawna, a plik po sprawie należy usunąć.
-- Rozszerzenie **nie weryfikuje podpisów** — pokazuje algorytm i odcisk certyfikatu. Nie jest dowodem poprawności podpisu ani narzędziem audytu kryptograficznego.
-- Nie ma szyfrowania eksportowanych plików. Jeśli mają wyjść poza Twoją maszynę, spakuj je z hasłem albo przekaż kanałem szyfrowanym.
-- Rozszerzenie ładowane jako „unpacked" nie aktualizuje się samo i każdy z dostępem do Twojego profilu Chrome widzi te same dane w panelu — zwykłe zasady blokowania stacji obowiązują.
+- A SAML assertion and a JWT are **credentials**, not just data. A valid assertion pasted into a ticket can be replayed against the SP within its validity window (Okta's default is 5 minutes) — so attach the report only after the window has expired, or use a test account.
+- The export, the report and copied text contain full attributes (e-mail, groups, department) — treat the files as personal data: handing them to external support is a data disclosure, so a data-processing agreement / legal basis applies, and the file should be deleted once the case is closed.
+- The extension **does not verify signatures** — it shows the algorithm and the certificate fingerprint. It is not proof of signature validity nor a cryptographic audit tool.
+- Exported files are not encrypted. If they are to leave your machine, zip them with a password or hand them over via an encrypted channel.
+- An extension loaded as "unpacked" does not update itself, and anyone with access to your Chrome profile sees the same data in the panel — the usual workstation-locking rules apply.
 
-## Ograniczenia
+## Limitations
 
-- Chrome nie udostępnia rozszerzeniom **treści odpowiedzi** w `webRequest`, więc widać ciała żądań (tam jest `SAMLResponse` przy POST binding), ale nie HTML odpowiedzi. Do SAML wystarcza; do podglądu treści odpowiedzi zostaje zakładka Network.
-- Ruch stron `chrome://`, Chrome Web Store i innych rozszerzeń jest niewidoczny dla rozszerzeń — to ograniczenie przeglądarki.
-- Fragment URL (część po `#`) nie jest wysyłany na serwer, więc tokeny z flow implicit OIDC nie trafiają do `webRequest`. Wklej je ręcznie w zakładce JWT.
-- Bufor po restarcie service workera obejmuje ostatnie ~150 wpisów (w pamięci, nie na dysku); pełna historia żyje w otwartym panelu.
-- Bardzo duże asercje (>1,5 MB zakodowanego parametru) są obcinane — wpis dostaje wtedy plakietkę „Parameter truncated”.
+- Chrome does not expose **response bodies** to extensions in `webRequest`, so you can see request bodies (that's where the `SAMLResponse` lives with the POST binding) but not the response HTML. For SAML that's enough; for inspecting response bodies there's still the Network tab.
+- Traffic of `chrome://` pages, the Chrome Web Store and other extensions is invisible to extensions — a browser limitation.
+- The URL fragment (the part after `#`) is never sent to the server, so tokens from the OIDC implicit flow don't reach `webRequest`. Paste them manually in the JWT tab.
+- After a service worker restart the buffer covers the last ~150 entries (in memory, not on disk); the full history lives in the open panel.
+- Very large assertions (>1.5 MB of encoded parameter) are truncated — the entry then gets a "Parameter truncated" badge.
 
-## Struktura
+## Structure
 
 ```
-manifest.json          uprawnienia, service worker, devtools_page, action
-background.js          nasłuch webRequest, budowa wpisów, wykrywanie SAML, port do panelu
-devtools/              rejestracja zakładki „SAML” w DevTools
-panel/panel.html       układ: cztery zakładki, lista, panel szczegółów, dekoder JWT
-panel/panel.css        tokeny kolorów i typografii, oba motywy
-panel/panel.js         stan, render listy i szczegółów, import/eksport, raport, JWT
-lib/saml.js            base64 + inflate, parser SAML, formatowanie i kolorowanie XML
-lib/jwt.js             dekoder JWT
-lib/util.js            dopasowywanie hostów, wykrywanie parametrów SAML, czas
-lib/report.js          generator samodzielnego raportu HTML
-tests/                 testy w Node (jsdom) — logika SAML/JWT, panel, service worker
+manifest.json          permissions, service worker, devtools_page, action
+background.js          webRequest listening, entry building, SAML detection, port to the panel
+devtools/              registration of the "SAML" tab in DevTools
+panel/panel.html       layout: four tabs, list, details panel, JWT decoder
+panel/panel.css        color and typography tokens, both themes
+panel/panel.js         state, list and details rendering, import/export, report, JWT
+lib/saml.js            base64 + inflate, SAML parser, XML formatting and highlighting
+lib/jwt.js             JWT decoder
+lib/util.js            host matching, SAML parameter detection, time
+lib/report.js          self-contained HTML report generator
+tests/                 Node tests (jsdom) — SAML/JWT logic, panel, service worker
 ```
 
-## Testy
+## Tests
 
 ```bash
 npm install jsdom
-node tests/run.mjs         # dekodowanie, parser, formatowanie XML, JWT, raport
-node tests/panel.mjs       # panel w jsdom: lista, szczegóły, filtr, import HAR, eksport
-node tests/background.mjs  # pipeline webRequest: hopy, SAML, błędy, pauza, clear
+node tests/run.mjs         # decoding, parser, XML formatting, JWT, report
+node tests/panel.mjs       # the panel in jsdom: list, details, filter, HAR import, export
+node tests/background.mjs  # the webRequest pipeline: hops, SAML, errors, pause, clear
 ```
 
-Testy uruchamiają prawdziwy kod rozszerzenia na atrapach API Chrome, więc łapią błędy jeszcze przed przeładowaniem wtyczki.
+The tests run the extension's real code against Chrome API stubs, so they catch bugs before you even reload the extension.
